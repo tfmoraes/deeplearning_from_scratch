@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.datasets import load_boston, fetch_openml
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
 
 
 def permute_data(X: np.ndarray, y: np.ndarray) -> Tuple[np.ndarray]:
@@ -452,7 +452,7 @@ class Trainer:
 
 
 def load_mnist():
-    X, y = fetch_openml('mnist_784', version=1, return_X_y=True)
+    X, y = fetch_openml("mnist_784", version=1, return_X_y=True)
     return X, y
 
 
@@ -462,6 +462,12 @@ def main():
     # Y = np.dot(X, np.random.random((5, 1))) + np.random.random((100, 1))
     # Y = X**2 + 2*X + np.random.random()
     X, Y = load_mnist()
+    X = X / 255.0
+    Y = Y.reshape(-1, 1)
+
+    oe = OneHotEncoder()
+    oe.fit(Y)
+
     X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=0.2)
     X_train, X_test = X_train - np.mean(X_train), X_test - np.mean(X_train)
     X_train, X_test = X_train / np.std(X_train), X_test / np.std(X_train)
@@ -469,14 +475,21 @@ def main():
     optimizer = SGD(lr=0.01)
     neural_network = NeuralNetwork(
         layers=[
-            Dense(neurons=13, activation=Sigmoid()),
-            Dense(neurons=13, activation=Tanh()),
-            Dense(neurons=1, activation=Linear()),
+            Dense(neurons=89, activation=Tanh()),
+            Dense(neurons=10, activation=Sigmoid()),
         ],
         loss=MeanSquaredError(),
     )
     trainer = Trainer(neural_network, optimizer)
-    trainer.fit(X_train, y_train, X_test, y_test, epochs=200, eval_every=10, seed=42)
+    trainer.fit(
+        X_train,
+        oe.transform(y_train).toarray(),
+        X_test,
+        oe.transform(y_test).toarray(),
+        epochs=200,
+        eval_every=10,
+        seed=42,
+    )
 
     X_proof = X  # np.arange(-20, 20, 0.01).reshape(-1, 1)
     y_proof = neural_network.forward(X_proof)
