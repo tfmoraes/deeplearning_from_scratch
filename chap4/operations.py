@@ -5,6 +5,7 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.datasets import load_boston, fetch_openml
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from scipy.special import logsumexp
 
 
 def permute_data(X: np.ndarray, y: np.ndarray) -> Tuple[np.ndarray]:
@@ -14,6 +15,12 @@ def permute_data(X: np.ndarray, y: np.ndarray) -> Tuple[np.ndarray]:
 
 def softmax(x, axis=None):
     return np.exp(x - logsumexp(x, axis=axis, keepdims=True))
+
+
+def calc_accuracy_model(model, x_test, y_test):
+    return print(
+        f"""The model validation accuracy is: {np.equal(np.argmax(model.forward(x_test), axis=1), y_test).sum() * 100.0 / x_test.shape[0]:.2f}%"""
+    )
 
 
 class Operation:
@@ -308,10 +315,10 @@ class SoftmaxCrossEntropyLoss(Loss):
         softmax_cross_entropy_loss = -1.0 * self.target * np.log(self.softmax_preds) - (
             1.0 - self.target
         ) * np.log(1.0 - self.softmax_preds)
-        return np.sum(softmax_cross_entropy_loss)
+        return np.sum(softmax_cross_entropy_loss) / self.prediction.shape[0]
 
     def _input_grad(self) -> np.ndarray:
-        return self.softmax_preds - self.target
+        return (self.softmax_preds - self.target) / self.prediction.shape[0]
 
 
 class NeuralNetwork:
@@ -371,6 +378,7 @@ class Optimizer:
 
     def __init__(self, lr: float = 0.01):
         self.lr = lr
+        self.first = True
 
     def step(self) -> None:
         pass
@@ -387,6 +395,32 @@ class SGD(Optimizer):
     def step(self):
         for (param, param_grad) in zip(self.net.params(), self.net.param_grads()):
             param -= self.lr * param_grad
+
+
+class SGDMomentun(Optimizer):
+    """
+    SGD with momentun.
+    """
+
+    def __init__(self, lr: float = 0.01, momentun: float = 0.9):
+        super().__init__(lr)
+        self.momentun = momentun
+
+    def step(self) -> None:
+        if self.first:
+            self.velocities = [np.zeros_like(param) for param in self.net.params()]
+            self.first = False
+
+        for (param, param_grad, velocity) in zip(
+            self.net.params(), self.net.param_grads(), self.velocities
+        ):
+            self._update_rule(param=param, grad=param_grad, velocity=velocity)
+
+    def _update_rule(self, **kwargs) -> None:
+        # Update velocity
+        kwargs["velocity"] *= self.momentun
+        kwargs["velocity"] += self.lr * kwargs["grad"]
+        kwargs["param"] -= kwargs["velocity"]
 
 
 class Trainer:
@@ -472,13 +506,13 @@ def main():
     X_train, X_test = X_train - np.mean(X_train), X_test - np.mean(X_train)
     X_train, X_test = X_train / np.std(X_train), X_test / np.std(X_train)
 
-    optimizer = SGD(lr=0.01)
+    optimizer = SGDMomentun(lr=0.01, momentun=0.9)
     neural_network = NeuralNetwork(
         layers=[
             Dense(neurons=89, activation=Tanh()),
-            Dense(neurons=10, activation=Sigmoid()),
+            Dense(neurons=10, activation=Linear()),
         ],
-        loss=MeanSquaredError(),
+        loss=SoftmaxCrossEntropyLoss(),
     )
     trainer = Trainer(neural_network, optimizer)
     trainer.fit(
@@ -486,18 +520,20 @@ def main():
         oe.transform(y_train).toarray(),
         X_test,
         oe.transform(y_test).toarray(),
-        epochs=200,
+        epochs=50,
         eval_every=10,
         seed=42,
     )
+    calc_accuracy_model(neural_network, X_test, y_test)
 
-    X_proof = X  # np.arange(-20, 20, 0.01).reshape(-1, 1)
-    y_proof = neural_network.forward(X_proof)
 
-    plt.scatter(X[:, 0], Y.flatten(), c="r", label="Y")
-    plt.scatter(X_proof[:, 0], y_proof.flatten(), c="g", label="linear_regression")
-    plt.legend()
-    plt.show()
+    #X_proof = X  # np.arange(-20, 20, 0.01).reshape(-1, 1)
+    #y_proof = neural_network.forward(X_proof)
+
+    #plt.scatter(X[:, 0], Y.flatten(), c="r", label="Y")
+    #plt.scatter(X_proof[:, 0], y_proof.flatten(), c="g", label="linear_regression")
+    #plt.legend()
+    #plt.show()
 
 
 if __name__ == "__main__":
