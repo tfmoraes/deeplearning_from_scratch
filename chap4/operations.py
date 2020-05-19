@@ -17,10 +17,9 @@ def softmax(x, axis=None):
     return np.exp(x - logsumexp(x, axis=axis, keepdims=True))
 
 
-def calc_accuracy_model(model, x_test, y_test):
-    return print(
-        f"""The model validation accuracy is: {np.equal(model.forward(x_test).argmax(1), y_test.argmax(1)).sum() * 100.0 / x_test.shape[0]:.2f}%"""
-    )
+def calc_accuracy_model(y_pred, y_test):
+    acc = np.equal(y_pred.argmax(1), y_test.argmax(1)).sum() * 100.0 / y_pred.shape[0]
+    return acc
 
 
 class Operation:
@@ -405,8 +404,6 @@ class Optimizer:
         elif self.decay_type == "linear":
             self.lr -= self.decay_per_epoch
 
-        print("Learning rate", self.lr)
-
     def step(self) -> None:
         pass
 
@@ -508,13 +505,14 @@ class Trainer:
                 self.net.train_batch(X_batch, y_batch)
                 self.optim.step()
 
-            if (e + 1) % eval_every == 0:
-                test_preds = self.net.forward(X_test)
-                loss = self.net.loss.forward(test_preds, y_test)
-                print(f"Validation loss after {e+1} epochs is {loss:.3f}")
+            test_preds = self.net.forward(X_test)
+            loss = self.net.loss.forward(test_preds, y_test)
+            acc = calc_accuracy_model(test_preds, y_test)
 
             if self.optim.final_lr:
                 self.optim._decay_lr()
+
+            print(f"Epoch: {e} - loss: {loss:.3f}, acc: {acc:.3f}, lr: {self.optim.lr:.3f}")
 
 
 def load_mnist():
@@ -556,7 +554,6 @@ def main():
         eval_every=10,
         seed=42,
     )
-    calc_accuracy_model(neural_network, X_test, y_test)
     # X_proof = X  # np.arange(-20, 20, 0.01).reshape(-1, 1)
     # y_proof = neural_network.forward(X_proof)
 
