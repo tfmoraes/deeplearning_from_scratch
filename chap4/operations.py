@@ -19,7 +19,7 @@ def softmax(x, axis=None):
 
 def calc_accuracy_model(model, x_test, y_test):
     return print(
-        f"""The model validation accuracy is: {np.equal(np.argmax(model.forward(x_test), axis=1), y_test).sum() * 100.0 / x_test.shape[0]:.2f}%"""
+        f"""The model validation accuracy is: {np.equal(model.forward(x_test).argmax(1), y_test.argmax(1)).sum() * 100.0 / x_test.shape[0]:.2f}%"""
     )
 
 
@@ -376,9 +376,36 @@ class Optimizer:
     Base class for optimizer
     """
 
-    def __init__(self, lr: float = 0.01):
+    def __init__(
+        self, lr: float = 0.01, final_lr: float = 0.0, decay_type="exponential"
+    ):
         self.lr = lr
+        self.final_lr = final_lr
+        self.decay_type = decay_type
         self.first = True
+        self.max_epochs = 100
+
+    def _setup_decay(self) -> None:
+        if not self.decay_type:
+            return
+        elif self.decay_type == "exponential":
+            self.decay_per_epoch = np.power(
+                self.final_lr / self.lr, 1.0 / (self.max_epochs - 1)
+            )
+        elif self.decay_type == "linear":
+            self.decay_per_epoch = (self.lr - self.final_lr) / (self.max_epochs - 1)
+
+        print("Decay per epoch", self.decay_per_epoch)
+
+    def _decay_lr(self) -> None:
+        if not self.decay_per_epoch:
+            return
+        elif self.decay_type == "exponential":
+            self.lr *= self.decay_per_epoch
+        elif self.decay_type == "linear":
+            self.lr -= self.decay_per_epoch
+
+        print("Learning rate", self.lr)
 
     def step(self) -> None:
         pass
@@ -402,8 +429,8 @@ class SGDMomentun(Optimizer):
     SGD with momentun.
     """
 
-    def __init__(self, lr: float = 0.01, momentun: float = 0.9):
-        super().__init__(lr)
+    def __init__(self, lr: float = 0.01, momentun: float = 0.9, *args, **kwargs):
+        super().__init__(lr, *args, **kwargs)
         self.momentun = momentun
 
     def step(self) -> None:
@@ -472,6 +499,8 @@ class Trainer:
             for layer in self.net.layers:
                 layer.first = True
 
+        self.optim.max_epochs = epochs
+        self.optim._setup_decay()
         for e in range(epochs):
             X_train, y_train = permute_data(X_train, y_train)
             batch_generator = self.generate_batches(X_train, y_train, batch_size)
@@ -483,6 +512,9 @@ class Trainer:
                 test_preds = self.net.forward(X_test)
                 loss = self.net.loss.forward(test_preds, y_test)
                 print(f"Validation loss after {e+1} epochs is {loss:.3f}")
+
+            if self.optim.final_lr:
+                self.optim._decay_lr()
 
 
 def load_mnist():
@@ -506,7 +538,7 @@ def main():
     X_train, X_test = X_train - np.mean(X_train), X_test - np.mean(X_train)
     X_train, X_test = X_train / np.std(X_train), X_test / np.std(X_train)
 
-    optimizer = SGDMomentun(lr=0.01, momentun=0.9)
+    optimizer = SGDMomentun(lr=0.15, momentun=0.9, final_lr=0.05, decay_type="linear")
     neural_network = NeuralNetwork(
         layers=[
             Dense(neurons=89, activation=Tanh()),
@@ -525,15 +557,13 @@ def main():
         seed=42,
     )
     calc_accuracy_model(neural_network, X_test, y_test)
+    # X_proof = X  # np.arange(-20, 20, 0.01).reshape(-1, 1)
+    # y_proof = neural_network.forward(X_proof)
 
-
-    #X_proof = X  # np.arange(-20, 20, 0.01).reshape(-1, 1)
-    #y_proof = neural_network.forward(X_proof)
-
-    #plt.scatter(X[:, 0], Y.flatten(), c="r", label="Y")
-    #plt.scatter(X_proof[:, 0], y_proof.flatten(), c="g", label="linear_regression")
-    #plt.legend()
-    #plt.show()
+    # plt.scatter(X[:, 0], Y.flatten(), c="r", label="Y")
+    # plt.scatter(X_proof[:, 0], y_proof.flatten(), c="g", label="linear_regression")
+    # plt.legend()
+    # plt.show()
 
 
 if __name__ == "__main__":
