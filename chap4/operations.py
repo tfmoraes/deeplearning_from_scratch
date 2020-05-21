@@ -229,10 +229,16 @@ class Dense(Layer):
     A fully connected layer
     """
 
-    def __init__(self, neurons: int, activation: Operation = Sigmoid()) -> None:
+    def __init__(
+        self,
+        neurons: int,
+        activation: Operation = Sigmoid(),
+        weight_init: str = "standard",
+    ) -> None:
         super().__init__(neurons)
         self.activation = activation
         self.seed = None
+        self.weight_init = weight_init
 
     def _setup_layer(self, input_: np.ndarray) -> None:
         """
@@ -241,13 +247,21 @@ class Dense(Layer):
         if self.seed:
             np.random.seed(self.seed)
 
+        num_in = input_.shape[1]
+        if self.weight_init == "glorot":
+            scale = 2.0 / (num_in + self.neurons)
+        else:
+            scale = 1.0
+
         self.params = []
 
         # Weights
-        self.params.append(np.random.randn(input_.shape[1], self.neurons))
+        self.params.append(
+            np.random.normal(loc=0, scale=scale, size=(num_in, self.neurons))
+        )
 
         # Bias
-        self.params.append(np.random.randn(1, self.neurons))
+        self.params.append(np.random.normal(loc=0, scale=scale, size=(1, self.neurons)))
 
         self.operations = [
             WeighMutiply(self.params[0]),
@@ -512,7 +526,9 @@ class Trainer:
             if self.optim.final_lr:
                 self.optim._decay_lr()
 
-            print(f"Epoch: {e} - loss: {loss:.3f}, acc: {acc:.3f}, lr: {self.optim.lr:.3f}")
+            print(
+                f"Epoch: {e} - loss: {loss:.3f}, acc: {acc:.3f}, lr: {self.optim.lr:.3f}"
+            )
 
 
 def load_mnist():
@@ -539,8 +555,8 @@ def main():
     optimizer = SGDMomentun(lr=0.15, momentun=0.9, final_lr=0.05, decay_type="linear")
     neural_network = NeuralNetwork(
         layers=[
-            Dense(neurons=89, activation=Tanh()),
-            Dense(neurons=10, activation=Linear()),
+            Dense(neurons=89, activation=Tanh(), weight_init="glorot"),
+            Dense(neurons=10, activation=Linear(), weight_init="glorot"),
         ],
         loss=SoftmaxCrossEntropyLoss(),
     )
