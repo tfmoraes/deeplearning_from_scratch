@@ -30,12 +30,12 @@ class Operation:
     def __init__(self):
         pass
 
-    def forward(self, input_: np.ndarray) -> np.ndarray:
+    def forward(self, input_: np.ndarray, inference: bool = False) -> np.ndarray:
         """
         Store input_ and apply it in self._output
         """
         self.input_ = input_
-        self.output = self._output()
+        self.output = self._output(inference)
         return self.output
 
     def backward(self, output_grad: np.ndarray) -> np.ndarray:
@@ -47,7 +47,7 @@ class Operation:
         assert self.input_.shape == self.input_grad.shape
         return self.input_grad
 
-    def _output(self) -> np.ndarray:
+    def _output(self, inference: bool) -> np.ndarray:
         raise NotImplementedError()
 
     def _input_grad(self, output_grad: np.ndarray) -> np.ndarray:
@@ -83,7 +83,7 @@ class WeighMutiply(ParamOperation):
     def __init__(self, W: np.ndarray):
         super().__init__(W)
 
-    def _output(self) -> np.ndarray:
+    def _output(self, inference: bool) -> np.ndarray:
         """
         Compute output
         """
@@ -111,7 +111,7 @@ class BiasAdd(ParamOperation):
         assert B.shape[0] == 1
         super().__init__(B)
 
-    def _output(self) -> np.ndarray:
+    def _output(self, inference: bool) -> np.ndarray:
         return self.input_ + self.param
 
     def _input_grad(self, output_grad: np.ndarray) -> np.ndarray:
@@ -126,7 +126,7 @@ class Sigmoid(Operation):
     def __init__(self):
         super().__init__()
 
-    def _output(self) -> np.ndarray:
+    def _output(self, inference: bool) -> np.ndarray:
         return 1.0 / (1.0 + np.exp(-1.0 * self.input_))
 
     def _input_grad(self, output_grad: np.ndarray) -> np.ndarray:
@@ -139,7 +139,7 @@ class Tanh(Operation):
     def __init__(self):
         super().__init__()
 
-    def _output(self) -> np.ndarray:
+    def _output(self, inference: bool) -> np.ndarray:
         return np.tanh(self.input_)
 
     def _input_grad(self, output_grad: np.ndarray) -> np.ndarray:
@@ -157,13 +157,29 @@ class Linear(Operation):
         """Pass"""
         super().__init__()
 
-    def _output(self) -> np.ndarray:
+    def _output(self, inference: bool) -> np.ndarray:
         """Pass through"""
         return self.input_
 
     def _input_grad(self, output_grad: np.ndarray) -> np.ndarray:
         """Pass through"""
         return output_grad
+
+
+class Dropout(Operation):
+    def __init__(self, keep_prob: float = 0.8):
+        super().__init__()
+        self.keep_prob = keep_prob
+
+    def _output(self, inference: bool) -> np.ndarray:
+        if inference:
+            return self.input_ * self.keep_prob
+        else:
+            self.mask = np.random.binomial(1, self.keep_prob, size=self.input_.shape)
+            return self.input_ * self.mask
+
+    def _input_grad(self, output_grad: np.ndarray) -> np.ndarray:
+        return output_grad * self.mask
 
 
 class Layer:
@@ -180,7 +196,7 @@ class Layer:
     def _setup_layer(self, num_in: int) -> None:
         raise NotImplementedError
 
-    def forward(self, input_: np.ndarray) -> np.ndarray:
+    def forward(self, input_: np.ndarray, inference: bool = False) -> np.ndarray:
         """
         Pass input throuhg a serie of operations
         """
@@ -190,7 +206,7 @@ class Layer:
 
         self.input_ = input_
         for operation in self.operations:
-            input_ = operation.forward(input_)
+            input_ = operation.forward(input_, inference)
         self.output = input_
         return self.output
 
@@ -233,11 +249,13 @@ class Dense(Layer):
         self,
         neurons: int,
         activation: Operation = Sigmoid(),
+        dropout: float = 1.0,
         weight_init: str = "standard",
     ) -> None:
         super().__init__(neurons)
         self.activation = activation
         self.seed = None
+        self.dropout = dropout
         self.weight_init = weight_init
 
     def _setup_layer(self, input_: np.ndarray) -> None:
@@ -268,6 +286,9 @@ class Dense(Layer):
             BiasAdd(self.params[1]),
             self.activation,
         ]
+
+        if self.dropout < 1.0:
+            self.operations.append(Dropout(self.dropout))
 
 
 class Loss:
@@ -346,13 +367,13 @@ class NeuralNetwork:
             for layer in self.layers:
                 setattr(layer, "seed", self.seed)
 
-    def forward(self, x_batch: np.ndarray) -> np.ndarray:
+    def forward(self, x_batch: np.ndarray, inference: bool = False) -> np.ndarray:
         """
         Pass data forward through a serie of layer
         """
         x_out = x_batch
         for layer in self.layers:
-            x_out = layer.forward(x_out)
+            x_out = layer.forward(x_out, inference)
         return x_out
 
     def backward(self, loss_grad: np.ndarray) -> None:
@@ -363,14 +384,17 @@ class NeuralNetwork:
         for layer in reversed(self.layers):
             grad = layer.backward(grad)
 
-    def train_batch(self, x_batch: np.ndarray, y_batch: np.ndarray) -> float:
+    def train_batch(self, x_batch: np.ndarray, y_batch: np.ndarray, inference: bool = False) -> float:
         """
         Passes data forward through the layers. Compute the loss. Passes data backward through the layer
         """
-        predictions = self.forward(x_batch)
+        predictions = self.forward(x_batch, inference)
         loss = self.loss.forward(predictions, y_batch)
         self.backward(self.loss.backward())
         return loss
+
+    def predict(self, X):
+        return self.forward(X, True)
 
     def params(self):
         """
@@ -490,7 +514,6 @@ class Trainer:
 
         for ii in range(0, N, size):
             X_batch, y_batch = X[ii : ii + size], y[ii : ii + size]
-
             yield X_batch, y_batch
 
     def fit(
@@ -519,7 +542,7 @@ class Trainer:
                 self.net.train_batch(X_batch, y_batch)
                 self.optim.step()
 
-            test_preds = self.net.forward(X_test)
+            test_preds = self.net.predict(X_test)
             loss = self.net.loss.forward(test_preds, y_test)
             acc = calc_accuracy_model(test_preds, y_test)
 
@@ -555,7 +578,7 @@ def main():
     optimizer = SGDMomentun(lr=0.15, momentun=0.9, final_lr=0.05, decay_type="linear")
     neural_network = NeuralNetwork(
         layers=[
-            Dense(neurons=89, activation=Tanh(), weight_init="glorot"),
+            Dense(neurons=89, activation=Tanh(), dropout=0.8, weight_init="glorot"),
             Dense(neurons=10, activation=Linear(), weight_init="glorot"),
         ],
         loss=SoftmaxCrossEntropyLoss(),
