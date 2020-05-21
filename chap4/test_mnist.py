@@ -29,10 +29,11 @@ def main():
     X_train, X_test = X_train - np.mean(X_train), X_test - np.mean(X_train)
     X_train, X_test = X_train / np.std(X_train), X_test / np.std(X_train)
 
-    optimizer = SGDMomentun(lr=0.15, momentun=0.9, final_lr=0.05, decay_type="linear")
+    optimizer = SGDMomentun(lr=0.15, momentun=0.9, final_lr=0.05, decay_type="exponential")
     neural_network = NeuralNetwork(
         layers=[
-            Dense(neurons=89, activation=Tanh(), dropout=0.8, weight_init="glorot"),
+            Dense(neurons=178, activation=Tanh(), dropout=0.8, weight_init="glorot"),
+            Dense(neurons=46, activation=Tanh(), dropout=0.8, weight_init="glorot"),
             Dense(neurons=10, activation=Linear(), weight_init="glorot"),
         ],
         loss=SoftmaxCrossEntropyLoss(),
