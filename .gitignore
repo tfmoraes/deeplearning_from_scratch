@@ -1,6 +1,5 @@
-
-# Created by https://www.gitignore.io/api/python,visualstudiocode
-# Edit at https://www.gitignore.io/?templates=python,visualstudiocode
+# Created by https://www.gitignore.io/api/vim,python,visualstudiocode
+# Edit at https://www.gitignore.io/?templates=vim,python,visualstudiocode
 
 ### Python ###
 # Byte-compiled / optimized / DLL files
@@ -107,6 +106,31 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
+### Vim ###
+# Swap
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+[._]s[a-rt-v][a-z]
+[._]ss[a-gi-z]
+[._]sw[a-p]
+
+# Session
+Session.vim
+Sessionx.vim
+
+# Temporary
+.netrwhist
+*~
+
+# Auto-generated tag files
+tags
+
+# Persistent undo
+[._]*.un~
+
+# Coc configuration directory
+.vim
+
 ### VisualStudioCode ###
 .vscode/*
 !.vscode/settings.json
@@ -118,4 +142,4 @@ dmypy.json
 # Ignore all local history of files
 .history
 
-# End of https://www.gitignore.io/api/python,visualstudiocode
+# End of https://www.gitignore.io/api/vim,python,visualstudiocode
