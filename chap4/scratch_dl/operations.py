@@ -11,6 +11,23 @@ class Operation:
     def __init__(self):
         pass
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # Don't pickle input_, output and input_grad
+        try:
+            del state["input_"]
+        except KeyError:
+            pass
+        try:
+            del state["output"]
+        except KeyError:
+            pass
+        try:
+            del state["input_grad"]
+        except KeyError:
+            pass
+        return state
+
     def forward(self, input_: np.ndarray, inference: bool = False) -> np.ndarray:
         """
         Store input_ and apply it in self._output

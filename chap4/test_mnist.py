@@ -48,6 +48,7 @@ def main():
         eval_every=10,
         seed=42,
     )
+    neural_network.save("model.pickle")
 
 
 if __name__ == "__main__":

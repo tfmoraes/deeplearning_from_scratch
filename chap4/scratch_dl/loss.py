@@ -13,6 +13,23 @@ class Loss:
     def __init__(self):
         pass
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # Don't pickle input_ and output
+        try:
+            del state["prediction"]
+        except KeyError:
+            pass
+        try:
+            del state["target"]
+        except KeyError:
+            pass
+        try:
+            del state["input_grad"]
+        except KeyError:
+            pass
+        return state
+
     def forward(self, prediction: np.ndarray, target: np.ndarray) -> float:
         assert prediction.shape == target.shape
 

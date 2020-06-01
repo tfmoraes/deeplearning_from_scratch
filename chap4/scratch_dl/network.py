@@ -1,8 +1,11 @@
+import pickle
 from typing import Callable, List, Tuple
+
 import numpy as np
 
-from .loss import Loss
 from .layers import Layer
+from .loss import Loss
+
 
 class NeuralNetwork:
     def __init__(self, layers: List[Layer], loss: Loss, seed: float = 1):
@@ -55,3 +58,13 @@ class NeuralNetwork:
     def param_grads(self):
         for layer in self.layers:
             yield from layer.param_grads
+
+    def save(self, filename: str) -> None:
+        with open(filename, 'wb') as f:
+            pickle.dump(self, f)
+
+    @staticmethod
+    def load(filename: str) -> None:
+        with open(filename, 'rb') as f:
+            tmp_dict = pickle.load(f)
+            return tmp_dict

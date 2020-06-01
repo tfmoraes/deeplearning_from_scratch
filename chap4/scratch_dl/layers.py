@@ -14,6 +14,19 @@ class Layer:
         self.param_grads: List[np.ndarray] = []
         self.operations: List[Operation]
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # Don't pickle input_ and output
+        try:
+            del state["input_"]
+        except KeyError:
+            pass
+        try:
+            del state["output"]
+        except KeyError:
+            pass
+        return state
+
     def _setup_layer(self, num_in: int) -> None:
         raise NotImplementedError
 
